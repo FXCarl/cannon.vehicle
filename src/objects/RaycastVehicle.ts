@@ -29,8 +29,10 @@ export class RaycastVehicle {
   indexUpAxis: number
   /** The constraints. */
   constraints: Constraint[]
-  /** Optional pre-step callback. */
+  /** Optional user callback invoked before the internally registered pre-step update. */
   preStepCallback: () => void
+  /** Internal listener kept separate so user callbacks and explicit hosts remain supported. */
+  private preStepInternalCallback: () => void
   currentVehicleSpeedKmHour: number
   /** Number of wheels on the ground. */
   numWheelsOnGround: number
@@ -54,6 +56,7 @@ export class RaycastVehicle {
     this.indexUpAxis = typeof options.indexUpAxis !== 'undefined' ? options.indexUpAxis : 1
     this.constraints = []
     this.preStepCallback = () => {}
+    this.preStepInternalCallback = () => {}
     this.currentVehicleSpeedKmHour = 0
     this.numWheelsOnGround = 0
   }
@@ -92,16 +95,24 @@ export class RaycastVehicle {
   }
 
   /**
-   * Add the vehicle including its constraints to the world.
+   * Add the vehicle to the world. Repeating this call for the same world is a no-op.
+   * The public preStepCallback remains available to users and runs before the vehicle update.
    */
   addToWorld(world: World): void {
-    world.addBody(this.chassisBody)
-    const that = this
-    this.preStepCallback = () => {
-      that.updateVehicle(world.dt)
+    if (this.world === world) {
+      return
     }
-    world.addEventListener('preStep', this.preStepCallback)
+    if (this.world !== null) {
+      throw new Error('RaycastVehicle is already attached to a world. Remove it before attaching another world.')
+    }
+
     this.world = world
+    world.addBody(this.chassisBody)
+    this.preStepInternalCallback = () => {
+      this.preStepCallback()
+      this.updateVehicle(world.dt)
+    }
+    world.addEventListener('preStep', this.preStepInternalCallback)
   }
 
   /**
@@ -226,7 +237,11 @@ export class RaycastVehicle {
         }
         force -= susp_damping * projected_rel_vel
 
-        wheel.suspensionForce = force * chassisMass
+        // Cancel the inverse contact projection on steep surfaces instead of
+        // amplifying a compressed suspension into a launching impulse. This is
+        // adapted from pmndrs/cannon-es PR #215 without changing the public API.
+        const hitNormalDotWheelUp = -wheel.raycastResult.hitNormalWorld.dot(wheel.directionWorld)
+        wheel.suspensionForce = force * chassisMass * Math.max(0, hitNormalDotWheelUp)
         if (wheel.suspensionForce < 0) {
           wheel.suspensionForce = 0
         }
@@ -237,13 +252,17 @@ export class RaycastVehicle {
   }
 
   /**
-   * Remove the vehicle including its constraints from the world.
+   * Remove the vehicle from the world and unregister exactly the internal listener.
    */
   removeFromWorld(world: World): void {
-    const constraints = this.constraints
-    world.removeBody(this.chassisBody)
-    world.removeEventListener('preStep', this.preStepCallback)
+    if (this.world !== world) {
+      return
+    }
+
+    world.removeEventListener('preStep', this.preStepInternalCallback)
+    this.preStepInternalCallback = () => {}
     this.world = null
+    world.removeBody(this.chassisBody)
   }
 
   castRay(wheel: WheelInfo): number {
@@ -262,16 +281,23 @@ export class RaycastVehicle {
     source.vadd(rayvector, target)
     const raycastResult = wheel.raycastResult
 
-    const param = 0
-
     raycastResult.reset()
-    // Turn off ray collision with the chassis temporarily
+    // Turn off ray collision with the chassis temporarily. Always restore it,
+    // including when a custom or damaged world implementation throws.
     const oldState = chassisBody.collisionResponse
     chassisBody.collisionResponse = false
 
-    // Cast ray against world
-    this.world!.rayTest(source, target, raycastResult)
-    chassisBody.collisionResponse = oldState
+    const world = this.world
+    if (world === null) {
+      chassisBody.collisionResponse = oldState
+      throw new Error('RaycastVehicle.castRay requires an attached world.')
+    }
+
+    try {
+      world.raycastClosest(source, target, { checkCollisionResponse: true }, raycastResult)
+    } finally {
+      chassisBody.collisionResponse = oldState
+    }
 
     const object = raycastResult.body
 

@@ -1,10 +1,14 @@
-# cannon-es
+# cannon.vehicle
 
-This is a maintained fork of [cannon.js](https://github.com/schteppe/cannon.js), originally created by Stefan Hedman [@schteppe](https://github.com/schteppe).
+A curated Cannon baseline for vehicle-simulation hosts. This repository tracks [pmndrs/cannon-es](https://github.com/pmndrs/cannon-es), preserves relevant RaycastVehicle compatibility work, and accepts narrowly scoped physics fixes with reproducible tests.
 
-It's a type-safe flatbundle (esm and cjs) which allows for **tree shaking** and usage in modern environments.
+**Current baseline:** cannon-es `v0.20.0` plus the reviewed deltas in [BASELINE.md](BASELINE.md). The engine-independent advanced vehicle model is developed separately; this repository remains the Cannon runtime and integration baseline.
 
-These minor changes and improvements were also made:
+The upstream project is a type-safe flat bundle (ESM and CJS) with tree shaking for modern environments. It originated from [cannon.js](https://github.com/schteppe/cannon.js), created by Stefan Hedman [@schteppe](https://github.com/schteppe).
+
+## Upstream cannon-es overview
+
+These changes and improvements were already present in the upstream lineage:
 
 - These PRs from the original repo were merged: [schteppe/cannon.js#433](https://github.com/schteppe/cannon.js/pull/433), [schteppe/cannon.js#430](https://github.com/schteppe/cannon.js/pull/430), [schteppe/cannon.js#418](https://github.com/schteppe/cannon.js/pull/418), [schteppe/cannon.js#360](https://github.com/schteppe/cannon.js/pull/360), [schteppe/cannon.js#265](https://github.com/schteppe/cannon.js/pull/265), [schteppe/cannon.js#392](https://github.com/schteppe/cannon.js/pull/392), [schteppe/cannon.js#424](https://github.com/schteppe/cannon.js/pull/424)
 - The `ConvexPolyhedron` constructor now accepts an object instead of a list of arguments. [#6](https://github.com/pmndrs/cannon-es/pull/6)
@@ -20,7 +24,18 @@ These minor changes and improvements were also made:
 
 If instead you're using three.js in a **React** environment with [react-three-fiber](https://github.com/pmndrs/react-three-fiber), check out [use-cannon](https://github.com/pmndrs/use-cannon)! It's a wrapper around cannon-es.
 
-## Installation
+## Baseline development
+
+```bash
+yarn install --frozen-lockfile
+yarn test --runInBand
+yarn typecheck
+yarn build
+```
+
+Every fork delta must identify its upstream source and include a focused regression test. Generated `dist/` files are rebuilt from source and reviewed separately.
+
+## Upstream installation
 
 ```
 yarn add cannon-es
