@@ -73,6 +73,27 @@ describe('RaycastVehicle world lifecycle', () => {
   })
 })
 
+describe('RaycastVehicle pure longitudinal slip', () => {
+  test('caps forward impulse even when lateral impulse is exactly zero', () => {
+    const chassisBody = new Body({ mass: 150 })
+    const groundBody = new Body({ mass: 0 })
+    const vehicle = new RaycastVehicle({ chassisBody })
+    const index = vehicle.addWheel({ frictionSlip: 1 })
+    const wheel = vehicle.wheelInfos[index]
+    const dt = 1 / 120
+    wheel.raycastResult.body = groundBody
+    wheel.suspensionForce = 1000
+    wheel.engineForce = 10000
+
+    vehicle.updateFriction(dt)
+
+    const cap = Math.abs(wheel.suspensionForce * dt * wheel.frictionSlip)
+    expect(Math.abs(wheel.sideImpulse)).toBe(0)
+    expect(wheel.skidInfo).toBeLessThan(1)
+    expect(Math.abs(wheel.forwardImpulse)).toBeLessThanOrEqual(cap + 1e-9)
+  })
+})
+
 describe('RaycastVehicle suspension contact projection', () => {
   test('leaves flat-ground spring force unchanged', () => {
     const vehicle = new RaycastVehicle({ chassisBody: new Body({ mass: 150 }) })

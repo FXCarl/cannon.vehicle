@@ -7632,8 +7632,10 @@ class RaycastVehicle {
       }
     }
 
-    const sideFactor = 1;
-    const fwdFactor = 0.5;
+    const sideFactor = 1; // The friction cap is computed per wheel. A separate 0.5 factor here would
+    // allow forwardImpulse to settle at twice the advertised per-wheel cap.
+
+    const fwdFactor = 1;
     this.sliding = false;
 
     for (let i = 0; i < numWheels; i++) {
@@ -7683,7 +7685,7 @@ class RaycastVehicle {
       for (let i = 0; i < numWheels; i++) {
         const wheel = wheelInfos[i];
 
-        if (wheel.sideImpulse !== 0) {
+        if (wheel.sideImpulse !== 0 || wheel.forwardImpulse !== 0) {
           if (wheel.skidInfo < 1) {
             wheel.forwardImpulse *= wheel.skidInfo;
             wheel.sideImpulse *= wheel.skidInfo;

@@ -40,6 +40,14 @@ Accepted behavior:
 
 The adaptation intentionally does **not** remove the public `constraints` property, change `updateVehicle`/`updateSuspension` signatures, or add the PR's visual wheel-rotation switch labelled `antiLockBraking`. That switch is not a physical ABS controller.
 
+### 4. Pure longitudinal slip must respect the per-wheel cap
+
+Source: FXCarl's historical vehicle work and the WebDrive architecture regression, ported into the TypeScript baseline with a direct unit test.
+
+The legacy friction loop skipped all `skidInfo` scaling when `sideImpulse` was zero, allowing a straight-line forward impulse to exceed its cap. In addition, a separate `fwdFactor = 0.5` made the post-scaling forward impulse settle at twice that cap. The baseline now applies skid scaling when either longitudinal or lateral impulse is nonzero and evaluates the longitudinal cap with `fwdFactor = 1`.
+
+The regression sets lateral impulse to zero, applies a longitudinal drive input above the cap, and verifies that `skidInfo < 1` and the final forward impulse does not exceed the per-wheel limit.
+
 ## Historical RaycastVehicle audit
 
 The old `fxcarl` branch contains JavaScript-era experiments, including slip-angle saturation, an empirical mass term, braking clamps and a separate dynamic controller. These are not present in the TypeScript `master` baseline and were not ported wholesale.
@@ -68,8 +76,8 @@ A baseline change is acceptable only when source typechecking, the complete Jest
 ## Verification result
 
 - TypeScript strict typecheck: passed.
-- Complete Jest suite: 8 suites and 98 tests passed.
+- Complete Jest suite: 8 suites and 99 tests passed.
 - New RaycastVehicle regression suite: 6 tests passed. Against the unchanged `v0.20.0` implementation, 5 of those tests fail, confirming that the suite detects the old lifecycle and contact defects.
 - Production ESM, CJS and declaration bundles: rebuilt successfully.
-- Published-file dry run: package version `0.20.0-fxcarl.0`; only the license, README, manifest and three distribution files are included.
+- Published-file dry run: package version `0.20.0-fxcarl.1`; only the license, README, manifest and three distribution files are included.
 - Built CJS consumer smoke test: 240 fixed steps at 120 Hz, four wheels grounded, exactly 240 user pre-step callbacks, finite settled chassis state and clean detachment.

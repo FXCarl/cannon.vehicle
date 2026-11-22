@@ -1,6 +1,6 @@
 {
   "name": "cannon-es",
-  "version": "0.20.0-fxcarl.0",
+  "version": "0.20.0-fxcarl.1",
   "license": "MIT",
   "description": "A curated cannon-es baseline with reviewed vehicle and raycast fixes.",
   "homepage": "https://github.com/schteppe/cannon.js",
