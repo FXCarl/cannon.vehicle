@@ -32,7 +32,6 @@
       // cannon.js variables
       let world
       let body
-      const timeStep = 1 / 60
 
       initThree()
       initCannon()
@@ -85,20 +84,14 @@
       function animate() {
         requestAnimationFrame(animate)
 
-        updatePhysics()
-        render()
-      }
-
-      function updatePhysics() {
         // Step the physics world
-        world.step(timeStep)
+        world.fixedStep()
 
         // Copy coordinates from cannon.js to three.js
         mesh.position.copy(body.position)
         mesh.quaternion.copy(body.quaternion)
-      }
 
-      function render() {
+        // Render three.js
         renderer.render(scene, camera)
       }
     </script>

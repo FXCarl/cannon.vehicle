@@ -20,55 +20,126 @@ import type { RayOptions, RaycastCallback } from '../collision/Ray'
 import type { Constraint } from '../constraints/Constraint'
 import type { Shape } from '../shapes/Shape'
 
-export type WorldOptions = {
-  gravity?: Vec3
-  allowSleep?: boolean
-  broadphase?: Broadphase
-  solver?: Solver
-  quatNormalizeFast?: boolean
-  quatNormalizeSkip?: number
-}
+export type WorldOptions = ConstructorParameters<typeof World>[0]
 
 /**
  * The physics world
- * @class World
- * @constructor
- * @extends EventTarget
- * @param {object} [options]
- * @param {Vec3} [options.gravity]
- * @param {boolean} [options.allowSleep]
- * @param {Broadphase} [options.broadphase]
- * @param {Solver} [options.solver]
- * @param {boolean} [options.quatNormalizeFast]
- * @param {number} [options.quatNormalizeSkip]
  */
 export class World extends EventTarget {
-  dt: number // Currently / last used timestep. Is set to -1 if not available. This value is updated before each internal step, which means that it is "fresh" inside event callbacks.
-  allowSleep: boolean // Makes bodies go to sleep when they've been inactive.
-  contacts: ContactEquation[] // All the current contacts (instances of ContactEquation) in the world.
+  /**
+   * Currently / last used timestep. Is set to -1 if not available. This value is updated before each internal step, which means that it is "fresh" inside event callbacks.
+   */
+  dt: number
+
+  /**
+   * Makes bodies go to sleep when they've been inactive.
+   * @default false
+   */
+  allowSleep: boolean
+
+  /**
+   * All the current contacts (instances of ContactEquation) in the world.
+   */
+  contacts: ContactEquation[]
+
   frictionEquations: FrictionEquation[]
-  quatNormalizeSkip: number // How often to normalize quaternions. Set to 0 for every step, 1 for every second etc.. A larger value increases performance. If bodies tend to explode, set to a smaller value (zero to be sure nothing can go wrong).
-  quatNormalizeFast: boolean // Set to true to use fast quaternion normalization. It is often enough accurate to use. If bodies tend to explode, set to false.
-  time: number // The wall-clock time since simulation start.
-  stepnumber: number // Number of timesteps taken since start.
-  default_dt: number // Default and last timestep sizes.
+
+  /**
+   * How often to normalize quaternions. Set to 0 for every step, 1 for every second etc.. A larger value increases performance. If bodies tend to explode, set to a smaller value (zero to be sure nothing can go wrong).
+   * @default 0
+   */
+  quatNormalizeSkip: number
+
+  /**
+   * Set to true to use fast quaternion normalization. It is often enough accurate to use.
+   * If bodies tend to explode, set to false.
+   * @default false
+   */
+  quatNormalizeFast: boolean
+
+  /**
+   * The wall-clock time since simulation start.
+   */
+  time: number
+
+  /**
+   * Number of timesteps taken since start.
+   */
+  stepnumber: number
+
+  /**
+   * Default and last timestep sizes.
+   */
+  default_dt: number
+
   nextId: number
+
+  /**
+   * The gravity of the world.
+   */
   gravity: Vec3
-  broadphase: Broadphase // The broadphase algorithm to use. Default is NaiveBroadphase.
-  bodies: Body[] // All bodies in this world
-  hasActiveBodies: boolean // True if any bodies are not sleeping, false if every body is sleeping.
-  solver: Solver // The solver algorithm to use. Default is GSSolver.
+
+  /**
+   * Gravity to use when approximating the friction max force (mu*mass*gravity).
+   * If undefined, global gravity will be used.
+   * Use to enable friction in a World with a null gravity vector (no gravity).
+   */
+  frictionGravity?: Vec3
+
+  /**
+   * The broadphase algorithm to use.
+   * @default NaiveBroadphase
+   */
+  broadphase: Broadphase
+
+  /**
+   * All bodies in this world
+   */
+  bodies: Body[]
+
+  /**
+   * True if any bodies are not sleeping, false if every body is sleeping.
+   */
+  hasActiveBodies: boolean
+
+  /**
+   * The solver algorithm to use.
+   * @default GSSolver
+   */
+  solver: Solver
   constraints: Constraint[]
   narrowphase: Narrowphase
+
+  /**
+   * collisionMatrix
+   */
   collisionMatrix: ArrayCollisionMatrix
-  collisionMatrixPrevious: ArrayCollisionMatrix // CollisionMatrix from the previous step.
+
+  /**
+   * CollisionMatrix from the previous step.
+   */
+  collisionMatrixPrevious: ArrayCollisionMatrix
   bodyOverlapKeeper: OverlapKeeper
   shapeOverlapKeeper: OverlapKeeper
-  materials: Material[] // All added materials.
+
+  /**
+   * All added contactmaterials.
+   */
   contactmaterials: ContactMaterial[]
-  contactMaterialTable: TupleDictionary // Used to look up a ContactMaterial given two instances of Material.
+
+  /**
+   * Used to look up a ContactMaterial given two instances of Material.
+   */
+  contactMaterialTable: TupleDictionary
+  /**
+   * The default material of the bodies.
+   */
   defaultMaterial: Material
-  defaultContactMaterial: ContactMaterial // This contact material is used if no suitable contactmaterial is found for a contact.
+
+  /**
+   * This contact material is used if no suitable contactmaterial is found for a contact.
+   */
+  defaultContactMaterial: ContactMaterial
   doProfiling: boolean
   profile: {
     solve: number
@@ -77,15 +148,68 @@ export class World extends EventTarget {
     integrate: number
     narrowphase: number
   }
-  accumulator: number // Time accumulator for interpolation. See http://gafferongames.com/game-physics/fix-your-timestep/
+
+  /**
+   * Time accumulator for interpolation.
+   * @see https://gafferongames.com/game-physics/fix-your-timestep/
+   */
+  accumulator: number
+
   subsystems: any[]
-  addBodyEvent: { type: 'addBody'; body: Body | null } // Dispatched after a body has been added to the world.
-  removeBodyEvent: { type: 'removeBody'; body: Body | null } // Dispatched after a body has been removed from the world.
+
+  /**
+   * Dispatched after a body has been added to the world.
+   */
+  addBodyEvent: { type: 'addBody'; body: Body | null }
+
+  /**
+   * Dispatched after a body has been removed from the world.
+   */
+  removeBodyEvent: { type: 'removeBody'; body: Body | null }
+
   idToBodyMap: { [id: number]: Body }
 
-  emitContactEvents!: () => void
+  lastCallTime?: number
 
-  constructor(options: WorldOptions = {}) {
+  constructor(
+    options: {
+      /**
+       * The gravity of the world.
+       */
+      gravity?: Vec3
+      /**
+       * Gravity to use when approximating the friction max force (mu*mass*gravity).
+       * If undefined, global gravity will be used.
+       */
+      frictionGravity?: Vec3
+      /**
+       * Makes bodies go to sleep when they've been inactive.
+       * @default false
+       */
+      allowSleep?: boolean
+      /**
+       * The broadphase algorithm to use.
+       * @default NaiveBroadphase
+       */
+      broadphase?: Broadphase
+      /**
+       * The solver algorithm to use.
+       * @default GSSolver
+       */
+      solver?: Solver
+      /**
+       * Set to true to use fast quaternion normalization. It is often enough accurate to use.
+       * If bodies tend to explode, set to false.
+       * @default false
+       */
+      quatNormalizeFast?: boolean
+      /**
+       * How often to normalize quaternions. Set to 0 for every step, 1 for every second etc.. A larger value increases performance. If bodies tend to explode, set to a smaller value (zero to be sure nothing can go wrong).
+       * @default 0
+       */
+      quatNormalizeSkip?: number
+    } = {}
+  ) {
     super()
 
     this.dt = -1
@@ -103,6 +227,10 @@ export class World extends EventTarget {
     if (options.gravity) {
       this.gravity.copy(options.gravity)
     }
+    if (options.frictionGravity) {
+      this.frictionGravity = new Vec3()
+      this.frictionGravity.copy(options.frictionGravity)
+    }
 
     this.broadphase = options.broadphase !== undefined ? options.broadphase : new NaiveBroadphase()
     this.bodies = []
@@ -114,7 +242,6 @@ export class World extends EventTarget {
     this.collisionMatrixPrevious = new ArrayCollisionMatrix()
     this.bodyOverlapKeeper = new OverlapKeeper()
     this.shapeOverlapKeeper = new OverlapKeeper()
-    this.materials = []
     this.contactmaterials = []
     this.contactMaterialTable = new TupleDictionary()
     this.defaultMaterial = new Material('default')
@@ -141,28 +268,14 @@ export class World extends EventTarget {
 
   /**
    * Get the contact material between materials m1 and m2
-   * @method getContactMaterial
-   * @param {Material} m1
-   * @param {Material} m2
-   * @return {ContactMaterial} The contact material if it was found.
+   * @return The contact material if it was found.
    */
   getContactMaterial(m1: Material, m2: Material): ContactMaterial {
     return this.contactMaterialTable.get(m1.id, m2.id)
   }
 
   /**
-   * Get number of objects in the world.
-   * @method numObjects
-   * @return {Number}
-   * @deprecated
-   */
-  numObjects(): number {
-    return this.bodies.length
-  }
-
-  /**
    * Store old collision state info
-   * @method collisionMatrixTick
    */
   collisionMatrixTick(): void {
     const temp = this.collisionMatrixPrevious
@@ -176,8 +289,6 @@ export class World extends EventTarget {
 
   /**
    * Add a constraint to the simulation.
-   * @method addConstraint
-   * @param {Constraint} c
    */
   addConstraint(c: Constraint): void {
     this.constraints.push(c)
@@ -185,8 +296,6 @@ export class World extends EventTarget {
 
   /**
    * Removes a constraint
-   * @method removeConstraint
-   * @param {Constraint} c
    */
   removeConstraint(c: Constraint): void {
     const idx = this.constraints.indexOf(c)
@@ -197,10 +306,6 @@ export class World extends EventTarget {
 
   /**
    * Raycast test
-   * @method rayTest
-   * @param {Vec3} from
-   * @param {Vec3} to
-   * @param {RaycastResult} result
    * @deprecated Use .raycastAll, .raycastClosest or .raycastAny instead.
    */
   rayTest(from: Vec3, to: Vec3, result: RaycastResult | RaycastCallback): void {
@@ -215,16 +320,7 @@ export class World extends EventTarget {
 
   /**
    * Ray cast against all bodies. The provided callback will be executed for each hit with a RaycastResult as single argument.
-   * @method raycastAll
-   * @param  {Vec3} from
-   * @param  {Vec3} to
-   * @param  {Object} options
-   * @param  {number} [options.collisionFilterMask=-1]
-   * @param  {number} [options.collisionFilterGroup=-1]
-   * @param  {boolean} [options.skipBackfaces=false]
-   * @param  {boolean} [options.checkCollisionResponse=true]
-   * @param  {Function} callback
-   * @return {boolean} True if any body was hit.
+   * @return True if any body was hit.
    */
   raycastAll(from?: Vec3, to?: Vec3, options: RayOptions = {}, callback?: RaycastCallback): boolean {
     options.mode = Ray.ALL
@@ -236,16 +332,7 @@ export class World extends EventTarget {
 
   /**
    * Ray cast, and stop at the first result. Note that the order is random - but the method is fast.
-   * @method raycastAny
-   * @param  {Vec3} from
-   * @param  {Vec3} to
-   * @param  {Object} options
-   * @param  {number} [options.collisionFilterMask=-1]
-   * @param  {number} [options.collisionFilterGroup=-1]
-   * @param  {boolean} [options.skipBackfaces=false]
-   * @param  {boolean} [options.checkCollisionResponse=true]
-   * @param  {RaycastResult} result
-   * @return {boolean} True if any body was hit.
+   * @return True if any body was hit.
    */
   raycastAny(from?: Vec3, to?: Vec3, options: RayOptions = {}, result?: RaycastResult): boolean {
     options.mode = Ray.ANY
@@ -257,16 +344,7 @@ export class World extends EventTarget {
 
   /**
    * Ray cast, and return information of the closest hit.
-   * @method raycastClosest
-   * @param  {Vec3} from
-   * @param  {Vec3} to
-   * @param  {Object} options
-   * @param  {number} [options.collisionFilterMask=-1]
-   * @param  {number} [options.collisionFilterGroup=-1]
-   * @param  {boolean} [options.skipBackfaces=false]
-   * @param  {boolean} [options.checkCollisionResponse=true]
-   * @param  {RaycastResult} result
-   * @return {boolean} True if any body was hit.
+   * @return True if any body was hit.
    */
   raycastClosest(from?: Vec3, to?: Vec3, options: RayOptions = {}, result?: RaycastResult): boolean {
     options.mode = Ray.CLOSEST
@@ -278,8 +356,6 @@ export class World extends EventTarget {
 
   /**
    * Add a rigid body to the simulation.
-   * @method add
-   * @param {Body} body
    * @todo If the simulation has not yet started, why recrete and copy arrays for each body? Accumulate in dynamic arrays in this case.
    * @todo Adding an array of bodies should be possible. This would save some loops too
    */
@@ -305,8 +381,6 @@ export class World extends EventTarget {
 
   /**
    * Remove a rigid body from the simulation.
-   * @method remove
-   * @param {Body} body
    */
   removeBody(body: Body): void {
     body.world = null
@@ -332,34 +406,26 @@ export class World extends EventTarget {
     return this.idToBodyMap[id]
   }
 
-  // TODO Make a faster map
-  getShapeById(id: number): Shape | void {
+  /**
+   * @todo Make a faster map
+   */
+  getShapeById(id: number): Shape | null {
     const bodies = this.bodies
-    for (let i = 0, bl = bodies.length; i < bl; i++) {
+    for (let i = 0; i < bodies.length; i++) {
       const shapes = bodies[i].shapes
-      for (let j = 0, sl = shapes.length; j < sl; j++) {
+      for (let j = 0; j < shapes.length; j++) {
         const shape = shapes[j]
         if (shape.id === id) {
           return shape
         }
       }
     }
-  }
 
-  /**
-   * Adds a material to the World.
-   * @method addMaterial
-   * @param {Material} m
-   * @todo Necessary?
-   */
-  addMaterial(m: Material): void {
-    this.materials.push(m)
+    return null
   }
 
   /**
    * Adds a contact material to the World
-   * @method addContactMaterial
-   * @param {ContactMaterial} cmat
    */
   addContactMaterial(cmat: ContactMaterial): void {
     // Add contact material
@@ -370,20 +436,52 @@ export class World extends EventTarget {
   }
 
   /**
+   * Removes a contact material from the World.
+   */
+  removeContactMaterial(cmat: ContactMaterial): void {
+    const idx = this.contactmaterials.indexOf(cmat)
+    if (idx === -1) {
+      return
+    }
+
+    this.contactmaterials.splice(idx, 1)
+    this.contactMaterialTable.delete(cmat.materials[0].id, cmat.materials[1].id)
+  }
+
+  /**
+   * Step the simulation forward keeping track of last called time
+   * to be able to step the world at a fixed rate, independently of framerate.
+   *
+   * @param dt The fixed time step size to use (default: 1 / 60).
+   * @param maxSubSteps Maximum number of fixed steps to take per function call (default: 10).
+   * @see https://gafferongames.com/post/fix_your_timestep/
+   * @example
+   *     // Run the simulation independently of framerate every 1 / 60 ms
+   *     world.fixedStep()
+   */
+  fixedStep(dt = 1 / 60, maxSubSteps = 10): void {
+    const time = performance.now() / 1000 // seconds
+    if (!this.lastCallTime) {
+      this.step(dt, undefined, maxSubSteps)
+    } else {
+      const timeSinceLastCalled = time - this.lastCallTime
+      this.step(dt, timeSinceLastCalled, maxSubSteps)
+    }
+    this.lastCallTime = time
+  }
+
+  /**
    * Step the physics world forward in time.
    *
    * There are two modes. The simple mode is fixed timestepping without interpolation. In this case you only use the first argument. The second case uses interpolation. In that you also provide the time since the function was last used, as well as the maximum fixed timesteps to take.
    *
-   * @method step
-   * @param {Number} dt                       The fixed time step size to use.
-   * @param {Number} [timeSinceLastCalled]    The time elapsed since the function was last called.
-   * @param {Number} [maxSubSteps=10]         Maximum number of fixed steps to take per function call.
-   *
+   * @param dt The fixed time step size to use.
+   * @param timeSinceLastCalled The time elapsed since the function was last called.
+   * @param maxSubSteps Maximum number of fixed steps to take per function call (default: 10).
+   * @see https://web.archive.org/web/20180426154531/http://bulletphysics.org/mediawiki-1.5.8/index.php/Stepping_The_World#What_do_the_parameters_to_btDynamicsWorld::stepSimulation_mean.3F
    * @example
    *     // fixed timestepping without interpolation
-   *     world.step(1/60);
-   *
-   * @see http://bulletphysics.org/mediawiki-1.5.8/index.php/Stepping_The_World
+   *     world.step(1 / 60)
    */
   step(dt: number, timeSinceLastCalled?: number, maxSubSteps = 10): void {
     if (timeSinceLastCalled === undefined) {
@@ -434,7 +532,7 @@ export class World extends EventTarget {
     const contacts = this.contacts
     const p1 = World_step_p1
     const p2 = World_step_p2
-    const N = this.numObjects()
+    const N = this.bodies.length
     const bodies = this.bodies
     const solver = this.solver
     const gravity = this.gravity
@@ -728,14 +826,6 @@ export class World extends EventTarget {
 
     this.dispatchEvent(World_step_preStepEvent)
 
-    // Invoke pre-step callbacks
-    for (i = 0; i !== N; i++) {
-      const bi = bodies[i]
-      if (bi.preStep) {
-        bi.preStep.call(bi)
-      }
-    }
-
     // Leap frog
     // vnew = v + h*f/m
     // xnew = x + h*vnew
@@ -757,20 +847,10 @@ export class World extends EventTarget {
       profile.integrate = performance.now() - profilingStart
     }
 
-    // Update world time
-    this.time += dt
+    // Update step number
     this.stepnumber += 1
 
     this.dispatchEvent(World_step_postStepEvent)
-
-    // Invoke post-step callbacks
-    for (i = 0; i !== N; i++) {
-      const bi = bodies[i]
-      const postStep = bi.postStep
-      if (postStep) {
-        postStep.call(bi)
-      }
-    }
 
     // Sleeping update
     let hasActiveBodies = true
@@ -788,9 +868,78 @@ export class World extends EventTarget {
     this.hasActiveBodies = hasActiveBodies
   }
 
+  emitContactEvents(): void {
+    const hasBeginContact = this.hasAnyEventListener('beginContact')
+    const hasEndContact = this.hasAnyEventListener('endContact')
+
+    if (hasBeginContact || hasEndContact) {
+      this.bodyOverlapKeeper.getDiff(additions, removals)
+    }
+
+    if (hasBeginContact) {
+      for (let i = 0, l = additions.length; i < l; i += 2) {
+        beginContactEvent.bodyA = this.getBodyById(additions[i])
+        beginContactEvent.bodyB = this.getBodyById(additions[i + 1])
+        this.dispatchEvent(beginContactEvent)
+      }
+      beginContactEvent.bodyA = beginContactEvent.bodyB = null
+    }
+
+    if (hasEndContact) {
+      for (let i = 0, l = removals.length; i < l; i += 2) {
+        endContactEvent.bodyA = this.getBodyById(removals[i])
+        endContactEvent.bodyB = this.getBodyById(removals[i + 1])
+        this.dispatchEvent(endContactEvent)
+      }
+      endContactEvent.bodyA = endContactEvent.bodyB = null
+    }
+
+    additions.length = removals.length = 0
+
+    const hasBeginShapeContact = this.hasAnyEventListener('beginShapeContact')
+    const hasEndShapeContact = this.hasAnyEventListener('endShapeContact')
+
+    if (hasBeginShapeContact || hasEndShapeContact) {
+      this.shapeOverlapKeeper.getDiff(additions, removals)
+    }
+
+    if (hasBeginShapeContact) {
+      for (let i = 0, l = additions.length; i < l; i += 2) {
+        const shapeA = this.getShapeById(additions[i])
+        const shapeB = this.getShapeById(additions[i + 1])
+        beginShapeContactEvent.shapeA = shapeA
+        beginShapeContactEvent.shapeB = shapeB
+        if (shapeA) beginShapeContactEvent.bodyA = shapeA.body
+        if (shapeB) beginShapeContactEvent.bodyB = shapeB.body
+        this.dispatchEvent(beginShapeContactEvent)
+      }
+      beginShapeContactEvent.bodyA =
+        beginShapeContactEvent.bodyB =
+        beginShapeContactEvent.shapeA =
+        beginShapeContactEvent.shapeB =
+          null
+    }
+
+    if (hasEndShapeContact) {
+      for (let i = 0, l = removals.length; i < l; i += 2) {
+        const shapeA = this.getShapeById(removals[i])
+        const shapeB = this.getShapeById(removals[i + 1])
+        endShapeContactEvent.shapeA = shapeA
+        endShapeContactEvent.shapeB = shapeB
+        if (shapeA) endShapeContactEvent.bodyA = shapeA.body
+        if (shapeB) endShapeContactEvent.bodyB = shapeB.body
+        this.dispatchEvent(endShapeContactEvent)
+      }
+      endShapeContactEvent.bodyA =
+        endShapeContactEvent.bodyB =
+        endShapeContactEvent.shapeA =
+        endShapeContactEvent.shapeB =
+          null
+    }
+  }
+
   /**
    * Sets all body forces in the world to zero.
-   * @method clearForces
    */
   clearForces(): void {
     const bodies = this.bodies
@@ -845,93 +994,42 @@ const World_step_frictionEquationPool: FrictionEquation[] = []
 const World_step_p1: Body[] = []
 const World_step_p2: Body[] = []
 
-World.prototype.emitContactEvents = (() => {
-  const additions: number[] = []
-  const removals: number[] = []
-  const beginContactEvent = {
-    type: 'beginContact',
-    bodyA: null,
-    bodyB: null,
-  }
-  const endContactEvent = {
-    type: 'endContact',
-    bodyA: null,
-    bodyB: null,
-  }
-  const beginShapeContactEvent = {
-    type: 'beginShapeContact',
-    bodyA: null,
-    bodyB: null,
-    shapeA: null,
-    shapeB: null,
-  }
-  const endShapeContactEvent = {
-    type: 'endShapeContact',
-    bodyA: null,
-    bodyB: null,
-    shapeA: null,
-    shapeB: null,
-  }
-
-  return function (): void {
-    const hasBeginContact = this.hasAnyEventListener('beginContact')
-    const hasEndContact = this.hasAnyEventListener('endContact')
-
-    if (hasBeginContact || hasEndContact) {
-      this.bodyOverlapKeeper.getDiff(additions, removals)
-    }
-
-    if (hasBeginContact) {
-      for (let i = 0, l = additions.length; i < l; i += 2) {
-        beginContactEvent.bodyA = this.getBodyById(additions[i])
-        beginContactEvent.bodyB = this.getBodyById(additions[i + 1])
-        this.dispatchEvent(beginContactEvent)
-      }
-      beginContactEvent.bodyA = beginContactEvent.bodyB = null
-    }
-
-    if (hasEndContact) {
-      for (let i = 0, l = removals.length; i < l; i += 2) {
-        endContactEvent.bodyA = this.getBodyById(removals[i])
-        endContactEvent.bodyB = this.getBodyById(removals[i + 1])
-        this.dispatchEvent(endContactEvent)
-      }
-      endContactEvent.bodyA = endContactEvent.bodyB = null
-    }
-
-    additions.length = removals.length = 0
-
-    const hasBeginShapeContact = this.hasAnyEventListener('beginShapeContact')
-    const hasEndShapeContact = this.hasAnyEventListener('endShapeContact')
-
-    if (hasBeginShapeContact || hasEndShapeContact) {
-      this.shapeOverlapKeeper.getDiff(additions, removals)
-    }
-
-    if (hasBeginShapeContact) {
-      for (let i = 0, l = additions.length; i < l; i += 2) {
-        const shapeA = this.getShapeById(additions[i])
-        const shapeB = this.getShapeById(additions[i + 1])
-        beginShapeContactEvent.shapeA = shapeA
-        beginShapeContactEvent.shapeB = shapeB
-        beginShapeContactEvent.bodyA = shapeA.body
-        beginShapeContactEvent.bodyB = shapeB.body
-        this.dispatchEvent(beginShapeContactEvent)
-      }
-      beginShapeContactEvent.bodyA = beginShapeContactEvent.bodyB = beginShapeContactEvent.shapeA = beginShapeContactEvent.shapeB = null
-    }
-
-    if (hasEndShapeContact) {
-      for (let i = 0, l = removals.length; i < l; i += 2) {
-        const shapeA = this.getShapeById(removals[i])
-        const shapeB = this.getShapeById(removals[i + 1])
-        endShapeContactEvent.shapeA = shapeA
-        endShapeContactEvent.shapeB = shapeB
-        endShapeContactEvent.bodyA = shapeA.body
-        endShapeContactEvent.bodyB = shapeB.body
-        this.dispatchEvent(endShapeContactEvent)
-      }
-      endShapeContactEvent.bodyA = endShapeContactEvent.bodyB = endShapeContactEvent.shapeA = endShapeContactEvent.shapeB = null
-    }
-  }
-})()
+// Stuff for emitContactEvents
+const additions: number[] = []
+const removals: number[] = []
+type ContactEvent = {
+  type: string
+  bodyA: Body | null
+  bodyB: Body | null
+}
+const beginContactEvent: ContactEvent = {
+  type: 'beginContact',
+  bodyA: null,
+  bodyB: null,
+}
+const endContactEvent: ContactEvent = {
+  type: 'endContact',
+  bodyA: null,
+  bodyB: null,
+}
+type ShapeContactEvent = {
+  type: string
+  bodyA: Body | null
+  bodyB: Body | null
+  shapeA: Shape | null
+  shapeB: Shape | null
+}
+const beginShapeContactEvent: ShapeContactEvent = {
+  type: 'beginShapeContact',
+  bodyA: null,
+  bodyB: null,
+  shapeA: null,
+  shapeB: null,
+}
+const endShapeContactEvent: ShapeContactEvent = {
+  type: 'endShapeContact',
+  bodyA: null,
+  bodyB: null,
+  shapeA: null,
+  shapeB: null,
+}

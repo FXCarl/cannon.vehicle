@@ -1,43 +1,20 @@
+const getKey = (i: number, j: number): string => (i < j ? `${i}-${j}` : `${j}-${i}`)
+
 /**
- * @class TupleDictionary
- * @constructor
+ * TupleDictionary
  */
 export class TupleDictionary {
-  data: { [id: string]: any; keys: string[] }
+  data: { [id: string]: any; keys: string[] } = { keys: [] }
 
-  constructor() {
-    this.data = { keys: [] }
-  }
-
-  /**
-   * @method get
-   * @param  {Number} i
-   * @param  {Number} j
-   * @return {Object}
-   */
+  /** get */
   get(i: number, j: number): any {
-    if (i > j) {
-      // swap
-      const temp = j
-      j = i
-      i = temp
-    }
-    return this.data[`${i}-${j}`]
+    const key = getKey(i, j)
+    return this.data[key]
   }
 
-  /**
-   * @method set
-   * @param  {Number} i
-   * @param  {Number} j
-   * @param {Object} value
-   */
+  /** set */
   set(i: number, j: number, value: any): void {
-    if (i > j) {
-      const temp = j
-      j = i
-      i = temp
-    }
-    const key = `${i}-${j}`
+    const key = getKey(i, j)
 
     // Check if key already exists
     if (!this.get(i, j)) {
@@ -47,9 +24,17 @@ export class TupleDictionary {
     this.data[key] = value
   }
 
-  /**
-   * @method reset
-   */
+  /** delete */
+  delete(i: number, j: number): void {
+    const key = getKey(i, j)
+    const index = this.data.keys.indexOf(key)
+    if (index !== -1) {
+      this.data.keys.splice(index, 1)
+    }
+    delete this.data[key]
+  }
+
+  /** reset */
   reset(): void {
     const data = this.data
     const keys = data.keys

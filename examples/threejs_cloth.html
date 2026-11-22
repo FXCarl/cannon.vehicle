@@ -27,9 +27,6 @@
        * https://viscomp.alexandra.dk/?p=147
        */
 
-      // Specify the simulation constants
-      const dt = 1 / 60
-
       const clothMass = 1 // 1 kg in total
       const clothSize = 1 // 1 meter
       const Nx = 12 // number of horizontal particles in the cloth
@@ -209,12 +206,20 @@
       function animate() {
         requestAnimationFrame(animate)
         controls.update()
-        world.step(dt)
-        render()
+
+        // Step the physics world
+        world.fixedStep()
+
+        // Sync the three.js meshes with the bodies
+        updateMeshes()
+
+        // Render three.js
+        renderer.render(scene, camera)
+
         stats.update()
       }
 
-      function render() {
+      function updateMeshes() {
         // Make the three.js cloth follow the cannon.js particles
         for (let i = 0; i < Nx + 1; i++) {
           for (let j = 0; j < Ny + 1; j++) {
@@ -233,8 +238,6 @@
         // Make the three.js ball follow the cannon.js one
         // Copying quaternion is not needed since it's a sphere
         sphereMesh.position.copy(sphereBody.position)
-
-        renderer.render(scene, camera)
       }
     </script>
   </body>

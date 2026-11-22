@@ -5,28 +5,35 @@ import type { Quaternion } from '../math/Quaternion'
 
 /**
  * A 3d box shape.
- * @class Box
- * @constructor
- * @param {Vec3} halfExtents
- * @author schteppe
- * @extends Shape
+ * @example
+ *     const size = 1
+ *     const halfExtents = new CANNON.Vec3(size, size, size)
+ *     const boxShape = new CANNON.Box(halfExtents)
+ *     const boxBody = new CANNON.Body({ mass: 1, shape: boxShape })
+ *     world.addBody(boxBody)
  */
 export class Box extends Shape {
+  /**
+   * The half extents of the box.
+   */
   halfExtents: Vec3
-  convexPolyhedronRepresentation: ConvexPolyhedron // Used by the contact generator to make contacts with other convex polyhedra for example.
+
+  /**
+   * Used by the contact generator to make contacts with other convex polyhedra for example.
+   */
+  convexPolyhedronRepresentation: ConvexPolyhedron
 
   constructor(halfExtents: Vec3) {
     super({ type: Shape.types.BOX })
 
     this.halfExtents = halfExtents
-    this.convexPolyhedronRepresentation = (null as unknown) as ConvexPolyhedron
+    this.convexPolyhedronRepresentation = null as unknown as ConvexPolyhedron
     this.updateConvexPolyhedronRepresentation()
     this.updateBoundingSphereRadius()
   }
 
   /**
    * Updates the local convex polyhedron representation used for some collisions.
-   * @method updateConvexPolyhedronRepresentation
    */
   updateConvexPolyhedronRepresentation(): void {
     const sx = this.halfExtents.x
@@ -62,10 +69,7 @@ export class Box extends Shape {
   }
 
   /**
-   * @method calculateLocalInertia
-   * @param  {Number} mass
-   * @param  {Vec3} target
-   * @return {Vec3}
+   * Calculate the inertia of the box.
    */
   calculateLocalInertia(mass: number, target = new Vec3()): Vec3 {
     Box.calculateInertia(this.halfExtents, mass, target)
@@ -81,10 +85,8 @@ export class Box extends Shape {
 
   /**
    * Get the box 6 side normals
-   * @method getSideNormals
-   * @param {array}      sixTargetVectors An array of 6 vectors, to store the resulting side normals in.
-   * @param {Quaternion} quat             Orientation to apply to the normal vectors. If not provided, the vectors will be in respect to the local frame.
-   * @return {array}
+   * @param sixTargetVectors An array of 6 vectors, to store the resulting side normals in.
+   * @param quat Orientation to apply to the normal vectors. If not provided, the vectors will be in respect to the local frame.
    */
   getSideNormals(sixTargetVectors: Vec3[], quat: Quaternion): Vec3[] {
     const sides = sixTargetVectors
@@ -105,14 +107,23 @@ export class Box extends Shape {
     return sides
   }
 
+  /**
+   * Returns the volume of the box.
+   */
   volume(): number {
     return 8.0 * this.halfExtents.x * this.halfExtents.y * this.halfExtents.z
   }
 
+  /**
+   * updateBoundingSphereRadius
+   */
   updateBoundingSphereRadius(): void {
     this.boundingSphereRadius = this.halfExtents.length()
   }
 
+  /**
+   * forEachWorldCorner
+   */
   forEachWorldCorner(pos: Vec3, quat: Quaternion, callback: (x: number, y: number, z: number) => void): void {
     const e = this.halfExtents
     const corners = [
@@ -133,6 +144,9 @@ export class Box extends Shape {
     }
   }
 
+  /**
+   * calculateWorldAABB
+   */
   calculateWorldAABB(pos: Vec3, quat: Quaternion, min: Vec3, max: Vec3): void {
     const e = this.halfExtents
     worldCornersTemp[0].set(e.x, e.y, e.z)

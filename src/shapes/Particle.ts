@@ -4,10 +4,10 @@ import type { Quaternion } from '../math/Quaternion'
 
 /**
  * Particle shape.
- * @class Particle
- * @constructor
- * @author schteppe
- * @extends Shape
+ * @example
+ *     const particleShape = new CANNON.Particle()
+ *     const particleBody = new CANNON.Body({ mass: 1, shape: particleShape })
+ *     world.addBody(particleBody)
  */
 export class Particle extends Shape {
   constructor() {
@@ -15,10 +15,7 @@ export class Particle extends Shape {
   }
 
   /**
-   * @method calculateLocalInertia
-   * @param  {Number} mass
-   * @param  {Vec3} target
-   * @return {Vec3}
+   * calculateLocalInertia
    */
   calculateLocalInertia(mass: number, target = new Vec3()): Vec3 {
     target.set(0, 0, 0)

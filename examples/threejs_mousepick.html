@@ -31,7 +31,6 @@
 
       // cannon.js variables
       let world
-      const dt = 1 / 60
       let jointBody
       let jointConstraint
       let cubeBody
@@ -274,7 +273,7 @@
         // The pivot for the jointBody is zero
         jointConstraint = new CANNON.PointToPointConstraint(constrainedBody, pivot, jointBody, new CANNON.Vec3(0, 0, 0))
 
-        // Add the constriant to world
+        // Add the constraint to world
         world.addConstraint(jointConstraint)
       }
 
@@ -285,7 +284,7 @@
         jointConstraint.update()
       }
 
-      // Remove constriant from world
+      // Remove constraint from world
       function removeJointConstraint() {
         world.removeConstraint(jointConstraint)
         jointConstraint = undefined
@@ -294,7 +293,8 @@
       function animate() {
         requestAnimationFrame(animate)
 
-        world.step(dt)
+        // Step the physics world
+        world.fixedStep()
 
         // Sync the three.js meshes with the bodies
         for (let i = 0; i !== meshes.length; i++) {
@@ -302,7 +302,9 @@
           meshes[i].quaternion.copy(bodies[i].quaternion)
         }
 
+        // Render three.js
         renderer.render(scene, camera)
+
         stats.update()
       }
     </script>
