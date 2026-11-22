@@ -5202,14 +5202,16 @@ class Ray {
 
     if (this.skipBackfaces && normal.dot(this.direction) > 0) {
       return;
-    }
+    } // Store the face index with the accepted hit; a farther hit must not overwrite it.
 
-    result.hitFaceIndex = typeof hitFaceIndex !== 'undefined' ? hitFaceIndex : -1;
+
+    const faceIndex = typeof hitFaceIndex !== 'undefined' ? hitFaceIndex : -1;
 
     switch (this.mode) {
       case Ray.ALL:
         this.hasHit = true;
         result.set(from, to, normal, hitPointWorld, shape, body, distance);
+        result.hitFaceIndex = faceIndex;
         result.hasHit = true;
         this.callback(result);
         break;
@@ -5220,6 +5222,7 @@ class Ray {
           this.hasHit = true;
           result.hasHit = true;
           result.set(from, to, normal, hitPointWorld, shape, body, distance);
+          result.hitFaceIndex = faceIndex;
         }
 
         break;
@@ -5229,6 +5232,7 @@ class Ray {
         this.hasHit = true;
         result.hasHit = true;
         result.set(from, to, normal, hitPointWorld, shape, body, distance);
+        result.hitFaceIndex = faceIndex;
         result.shouldStop = true;
         break;
     }
@@ -7213,7 +7217,9 @@ class RaycastVehicle {
 
   /** The constraints. */
 
-  /** Optional pre-step callback. */
+  /** Optional user callback invoked before the internally registered pre-step update. */
+
+  /** Internal listener kept separate so user callbacks and explicit hosts remain supported. */
 
   /** Number of wheels on the ground. */
   constructor(options) {
@@ -7227,6 +7233,8 @@ class RaycastVehicle {
     this.constraints = [];
 
     this.preStepCallback = () => {};
+
+    this.preStepInternalCallback = () => {};
 
     this.currentVehicleSpeedKmHour = 0;
     this.numWheelsOnGround = 0;
@@ -7272,20 +7280,29 @@ class RaycastVehicle {
     this.wheelInfos[wheelIndex].brake = brake;
   }
   /**
-   * Add the vehicle including its constraints to the world.
+   * Add the vehicle to the world. Repeating this call for the same world is a no-op.
+   * The public preStepCallback remains available to users and runs before the vehicle update.
    */
 
 
   addToWorld(world) {
-    world.addBody(this.chassisBody);
-    const that = this;
+    if (this.world === world) {
+      return;
+    }
 
-    this.preStepCallback = () => {
-      that.updateVehicle(world.dt);
+    if (this.world !== null) {
+      throw new Error('RaycastVehicle is already attached to a world. Remove it before attaching another world.');
+    }
+
+    this.world = world;
+    world.addBody(this.chassisBody);
+
+    this.preStepInternalCallback = () => {
+      this.preStepCallback();
+      this.updateVehicle(world.dt);
     };
 
-    world.addEventListener('preStep', this.preStepCallback);
-    this.world = world;
+    world.addEventListener('preStep', this.preStepInternalCallback);
   }
   /**
    * Get one of the wheel axles, world-oriented.
@@ -7407,8 +7424,12 @@ class RaycastVehicle {
           susp_damping = wheel.dampingRelaxation;
         }
 
-        force -= susp_damping * projected_rel_vel;
-        wheel.suspensionForce = force * chassisMass;
+        force -= susp_damping * projected_rel_vel; // Cancel the inverse contact projection on steep surfaces instead of
+        // amplifying a compressed suspension into a launching impulse. This is
+        // adapted from pmndrs/cannon-es PR #215 without changing the public API.
+
+        const hitNormalDotWheelUp = -wheel.raycastResult.hitNormalWorld.dot(wheel.directionWorld);
+        wheel.suspensionForce = force * chassisMass * Math.max(0, hitNormalDotWheelUp);
 
         if (wheel.suspensionForce < 0) {
           wheel.suspensionForce = 0;
@@ -7419,15 +7440,21 @@ class RaycastVehicle {
     }
   }
   /**
-   * Remove the vehicle including its constraints from the world.
+   * Remove the vehicle from the world and unregister exactly the internal listener.
    */
 
 
   removeFromWorld(world) {
-    this.constraints;
-    world.removeBody(this.chassisBody);
-    world.removeEventListener('preStep', this.preStepCallback);
+    if (this.world !== world) {
+      return;
+    }
+
+    world.removeEventListener('preStep', this.preStepInternalCallback);
+
+    this.preStepInternalCallback = () => {};
+
     this.world = null;
+    world.removeBody(this.chassisBody);
   }
 
   castRay(wheel) {
@@ -7441,13 +7468,26 @@ class RaycastVehicle {
     const source = wheel.chassisConnectionPointWorld;
     source.vadd(rayvector, target);
     const raycastResult = wheel.raycastResult;
-    raycastResult.reset(); // Turn off ray collision with the chassis temporarily
+    raycastResult.reset(); // Turn off ray collision with the chassis temporarily. Always restore it,
+    // including when a custom or damaged world implementation throws.
 
     const oldState = chassisBody.collisionResponse;
-    chassisBody.collisionResponse = false; // Cast ray against world
+    chassisBody.collisionResponse = false;
+    const world = this.world;
 
-    this.world.rayTest(source, target, raycastResult);
-    chassisBody.collisionResponse = oldState;
+    if (world === null) {
+      chassisBody.collisionResponse = oldState;
+      throw new Error('RaycastVehicle.castRay requires an attached world.');
+    }
+
+    try {
+      world.raycastClosest(source, target, {
+        checkCollisionResponse: true
+      }, raycastResult);
+    } finally {
+      chassisBody.collisionResponse = oldState;
+    }
+
     const object = raycastResult.body;
     wheel.raycastResult.groundObject = 0;
 

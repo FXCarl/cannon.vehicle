@@ -1443,6 +1443,7 @@ declare module "objects/RaycastVehicle" {
         indexUpAxis: number;
         constraints: Constraint[];
         preStepCallback: () => void;
+        private preStepInternalCallback;
         currentVehicleSpeedKmHour: number;
         numWheelsOnGround: number;
         constructor(options: {
